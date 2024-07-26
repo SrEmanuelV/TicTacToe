@@ -1,256 +1,128 @@
 #include <iostream>
 #include <vector>
-#include <climits>
-#include <unistd.h> // Librería para usleep en Unix/Linux
 
 using namespace std;
 
-const char HUMAN_PLAYER = 'X';
-const char AI_PLAYER = 'O';
-
 // Prototipos de funciones
-char checkWinner(const vector<char>& board);
-void drawBoard(const vector<char>& board);
-bool gameOver(const vector<char>& board);
-vector<int> getValidMoves(const vector<char>& board);
-int minimax(vector<char> board, bool isMaximizing, int alpha, int beta);
-int getAIMove(const vector<char>& board);
+void printBoard(const vector<char>& board);
+bool isMoveValid(const vector<char>& board, int move);
+bool checkWin(const vector<char>& board, char player);
+bool isBoardFull(const vector<char>& board);
+void updateBoard(vector<char>& board, int move, char player);
+void playGame(int& player1Wins, int& player2Wins);
+void printStatistics(int gamesPlayed, int player1Wins, int player2Wins);
+void clearScreen();
 
-// Función para limpiar la consola y dibujar el tablero
-void clearScreenAndDraw(const vector<char>& board) {
-    // Limpiar la consola usando ANSI escape codes
-    cout << "\033[2J\033[H";
-    drawBoard(board);
+int main() {
+    char playAgain;
+    int gamesPlayed = 0;
+    int player1Wins = 0;
+    int player2Wins = 0;
+
+    do {
+        playGame(player1Wins, player2Wins);
+        gamesPlayed++;
+        printStatistics(gamesPlayed, player1Wins, player2Wins);
+        cout << "¿Quieres jugar otra vez? (s/n): ";
+        cin >> playAgain;
+    } while (playAgain == 's' || playAgain == 'S');
+
+    return 0;
 }
 
-// Función para dibujar el tablero
-void drawBoard(const vector<char>& board) {
-    cout << " " << board[0] << " | " << board[1] << " | " << board[2] << endl;
-    cout << "---+---+---" << endl;
-    cout << " " << board[3] << " | " << board[4] << " | " << board[5] << endl;
-    cout << "---+---+---" << endl;
-    cout << " " << board[6] << " | " << board[7] << " | " << board[8] << endl;
+void printBoard(const vector<char>& board) {
+    cout << " " << board[0] << " | " << board[1] << " | " << board[2] << " \n";
+    cout << "---|---|---\n";
+    cout << " " << board[3] << " | " << board[4] << " | " << board[5] << " \n";
+    cout << "---|---|---\n";
+    cout << " " << board[6] << " | " << board[7] << " | " << board[8] << " \n";
 }
 
-// Función para verificar si hay un ganador o si es empate
-bool gameOver(const vector<char>& board) {
-    // Verificar si hay un ganador
-    for (int i = 0; i < 3; ++i) {
-        // Filas
-        if (board[i*3] != ' ' && board[i*3] == board[i*3+1] && board[i*3] == board[i*3+2]) {
+bool isMoveValid(const vector<char>& board, int move) {
+    return move >= 1 && move <= 9 && board[move - 1] != 'X' && board[move - 1] != 'O';
+}
+
+bool checkWin(const vector<char>& board, char player) {
+    vector<vector<int>> winningCombinations = {
+        {0, 1, 2}, {3, 4, 5}, {6, 7, 8}, // Filas
+        {0, 3, 6}, {1, 4, 7}, {2, 5, 8}, // Columnas
+        {0, 4, 8}, {2, 4, 6} // Diagonales
+    };
+
+    for (const auto& combination : winningCombinations) {
+        if (board[combination[0]] == player && board[combination[1]] == player && board[combination[2]] == player) {
             return true;
         }
-        // Columnas
-        if (board[i] != ' ' && board[i] == board[i+3] && board[i] == board[i+6]) {
-            return true;
-        }
-    }
-    // Diagonales
-    if (board[0] != ' ' && board[0] == board[4] && board[0] == board[8]) {
-        return true;
-    }
-    if (board[2] != ' ' && board[2] == board[4] && board[2] == board[6]) {
-        return true;
     }
 
-    // Verificar si es empate
-    for (int i = 0; i < 9; ++i) {
-        if (board[i] == ' ') {
+    return false;
+}
+
+bool isBoardFull(const vector<char>& board) {
+    for (char cell : board) {
+        if (cell != 'X' && cell != 'O') {
             return false;
         }
     }
     return true;
 }
 
-// Función para obtener los movimientos válidos
-vector<int> getValidMoves(const vector<char>& board) {
-    vector<int> validMoves;
-    for (int i = 0; i < 9; ++i) {
-        if (board[i] == ' ') {
-            validMoves.push_back(i);
-        }
-    }
-    return validMoves;
+void updateBoard(vector<char>& board, int move, char player) {
+    board[move - 1] = player;
 }
 
-// Función Minimax con Alfa-Beta Pruning
-int minimax(vector<char> board, bool isMaximizing, int alpha, int beta);
-
-// Función para que la IA elija un movimiento utilizando Minimax con Alfa-Beta Pruning
-int getAIMove(const vector<char>& board) {
-    int bestScore = INT_MIN;
-    int bestMove = -1;
-    int alpha = INT_MIN;
-    int beta = INT_MAX;
-
-    vector<int> validMoves = getValidMoves(board);
-
-    for (int move : validMoves) {
-        vector<char> newBoard = board;
-        newBoard[move] = AI_PLAYER;
-        int score = minimax(newBoard, false, alpha, beta);
-        if (score > bestScore) {
-            bestScore = score;
-            bestMove = move;
-        }
-    }
-
-    return bestMove;
-}
-
-// Función Minimax con Alfa-Beta Pruning
-int minimax(vector<char> board, bool isMaximizing, int alpha, int beta) {
-    // Evaluar el estado actual del tablero
-    if (gameOver(board)) {
-        // Si el juego ha terminado, devolver el valor de la utilidad
-        if (checkWinner(board) == AI_PLAYER) {
-            return 10; // AI gana
-        } else if (checkWinner(board) == HUMAN_PLAYER) {
-            return -10; // Humano gana
-        } else {
-            return 0; // Empate
-        }
-    }
-
-    // Obtener movimientos válidos
-    vector<int> validMoves = getValidMoves(board);
-
-    // Maximizar o minimizar el valor
-    if (isMaximizing) {
-        int bestScore = INT_MIN;
-        for (int move : validMoves) {
-            board[move] = AI_PLAYER;
-            int score = minimax(board, false, alpha, beta);
-            board[move] = ' ';
-            bestScore = max(bestScore, score);
-            alpha = max(alpha, bestScore);
-            if (beta <= alpha) {
-                break;
-            }
-        }
-        return bestScore;
-    } else {
-        int bestScore = INT_MAX;
-        for (int move : validMoves) {
-            board[move] = HUMAN_PLAYER;
-            int score = minimax(board, true, alpha, beta);
-            board[move] = ' ';
-            bestScore = min(bestScore, score);
-            beta = min(beta, bestScore);
-            if (beta <= alpha) {
-                break;
-            }
-        }
-        return bestScore;
-    }
-}
-
-// Implementación de la función checkWinner
-char checkWinner(const vector<char>& board) {
-    // Verificar si hay un ganador
-    for (int i = 0; i < 3; ++i) {
-        // Filas
-        if (board[i*3] != ' ' && board[i*3] == board[i*3+1] && board[i*3] == board[i*3+2]) {
-            return board[i*3];
-        }
-        // Columnas
-        if (board[i] != ' ' && board[i] == board[i+3] && board[i] == board[i+6]) {
-            return board[i];
-        }
-    }
-    // Diagonales
-    if (board[0] != ' ' && board[0] == board[4] && board[0] == board[8]) {
-        return board[0];
-    }
-    if (board[2] != ' ' && board[2] == board[4] && board[2] == board[6]) {
-        return board[2];
-    }
-
-    // Si no hay ganador
-    return ' ';
-}
-
-int main() {
-    int totalGames = 0;
-    int playerWins = 0;
-    int aiWins = 0;
+void playGame(int& player1Wins, int& player2Wins) {
+    vector<char> board = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+    int move;
+    char currentPlayer = 'X';
 
     while (true) {
-        vector<char> board(9, ' '); // Tablero vacío
-        bool playerTurn = true;     // True: turno del jugador, False: turno de la IA
-        totalGames++;
+        clearScreen();
+        printBoard(board);
+        cout << "Jugador " << currentPlayer << ", ingresa tu movimiento (1-9): ";
+        cin >> move;
 
-        cout << "Bienvenido al juego Tic Tac Toe! Partida #" << totalGames << endl;
+        if (isMoveValid(board, move)) {
+            updateBoard(board, move, currentPlayer);
+        } else {
+            cout << "Movimiento inválido. Intenta de nuevo." << endl;
+            continue;
+        }
 
-        // Dibujar el tablero por primera vez
-        clearScreenAndDraw(board);
-
-        // Bucle principal del juego
-        while (true) {
-            if (playerTurn) {
-                // Turno del jugador
-                int move;
-                cout << "Es tu turno. Ingresa un número del 1 al 9 para hacer tu movimiento (0 para salir): ";
-                cin >> move;
-
-                if (move == 0) {
-                    cout << "Gracias por jugar. Saliendo del juego." << endl;
-                    return 0;
-                }
-
-                // Convertir el movimiento a índice (1-9) a (0-8)
-                move--;
-
-                if (move < 0 || move >= 9 || board[move] != ' ') {
-                    cout << "Movimiento inválido. Intenta de nuevo." << endl;
-                    continue;
-                }
-
-                board[move] = HUMAN_PLAYER;
+        if (checkWin(board, currentPlayer)) {
+            clearScreen();
+            printBoard(board);
+            cout << "¡Jugador " << currentPlayer << " gana!" << endl;
+            if (currentPlayer == 'X') {
+                player1Wins++;
             } else {
-                // Turno de la IA
-                cout << "Turno de la IA..." << endl;
-                usleep(1000000); // Esperar un segundo (1000000 microsegundos) para simular el pensamiento de la IA
-                int aimove = getAIMove(board);
-                board[aimove] = AI_PLAYER;
+                player2Wins++;
             }
-
-            // Limpiar la consola y dibujar el tablero actualizado
-            clearScreenAndDraw(board);
-
-            // Verificar si hay un ganador o empate
-            if (gameOver(board)) {
-                if (checkWinner(board) == HUMAN_PLAYER) {
-                    cout << "¡Felicidades! ¡Has ganado!" << endl;
-                    playerWins++;
-                } else if (checkWinner(board) == AI_PLAYER) {
-                    cout << "¡La IA ha ganado!" << endl;
-                    aiWins++;
-                } else {
-                    cout << "¡Es un empate!" << endl;
-                }
-                break;
-            }
-
-            // Cambiar turno
-            playerTurn = !playerTurn;
+            return;
         }
 
-        // Mostrar estadísticas después de cada partida
-        cout << "Estadísticas: " << endl;
-        cout << "- Partidas jugadas: " << totalGames << endl;
-        cout << "- Victorias del jugador: " << playerWins << endl;
-        cout << "- Victorias de la IA: " << aiWins << endl;
-
-        // Preguntar si desea jugar otra partida
-        cout << "¿Quieres jugar otra partida? (s/n): ";
-        char choice;
-        cin >> choice;
-        if (choice != 's' && choice != 'S') {
-            cout << "Gracias por jugar. Saliendo del juego." << endl;
-            break;
+        if (isBoardFull(board)) {
+            clearScreen();
+            printBoard(board);
+            cout << "¡Es un empate!" << endl;
+            return;
         }
+
+        currentPlayer = (currentPlayer == 'X') ? 'O' : 'X';
     }
+}
 
-    return 0;
+void printStatistics(int gamesPlayed, int player1Wins, int player2Wins) {
+    cout << "Estadísticas del juego:\n";
+    cout << "Partidas jugadas: " << gamesPlayed << endl;
+    cout << "Victorias del Jugador 1 (X): " << player1Wins << endl;
+    cout << "Victorias del Jugador 2 (O): " << player2Wins << endl;
+}
+
+// Función para limpiar la pantalla
+void clearScreen() {
+    // Para sistemas POSIX (como Linux y macOS)
+    cout << "\033[2J\033[1;1H";
+    // Para Windows (puedes comentar esto si no estás en Windows)
+    // system("CLS");
 }
