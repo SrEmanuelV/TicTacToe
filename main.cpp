@@ -1,128 +1,226 @@
 #include <iostream>
 #include <vector>
+#include <string>
+#include <cstdlib>
+#include <ctime>
+#include <chrono>
 
 using namespace std;
+using namespace std::chrono;
 
-// Prototipos de funciones
-void printBoard(const vector<char>& board);
-bool isMoveValid(const vector<char>& board, int move);
-bool checkWin(const vector<char>& board, char player);
-bool isBoardFull(const vector<char>& board);
-void updateBoard(vector<char>& board, int move, char player);
-void playGame(int& player1Wins, int& player2Wins);
-void printStatistics(int gamesPlayed, int player1Wins, int player2Wins);
-void clearScreen();
-
-int main() {
-    char playAgain;
-    int gamesPlayed = 0;
-    int player1Wins = 0;
-    int player2Wins = 0;
-
-    do {
-        playGame(player1Wins, player2Wins);
-        gamesPlayed++;
-        printStatistics(gamesPlayed, player1Wins, player2Wins);
-        cout << "¿Quieres jugar otra vez? (s/n): ";
-        cin >> playAgain;
-    } while (playAgain == 's' || playAgain == 'S');
-
-    return 0;
+// Función para imprimir el tablero sin colores
+void printBoard(const vector<vector<char>>& board) {
+    cout << "    1   2   3" << endl;
+    cout << "  +---+---+---+" << endl;
+    for (int i = 0; i < 3; ++i) {
+        cout << i + 1 << " | ";
+        for (int j = 0; j < 3; ++j) {
+            if (board[i][j] == 'X') {
+                cout << "X"; // Rojo (sin color)
+            } else if (board[i][j] == 'O') {
+                cout << "O"; // Azul (sin color)
+            } else {
+                cout << " ";
+            }
+            if (j < 2) {
+                cout << " | ";
+            }
+        }
+        cout << " |" << endl;
+        cout << "  +---+---+---+" << endl;
+    }
 }
 
-void printBoard(const vector<char>& board) {
-    cout << " " << board[0] << " | " << board[1] << " | " << board[2] << " \n";
-    cout << "---|---|---\n";
-    cout << " " << board[3] << " | " << board[4] << " | " << board[5] << " \n";
-    cout << "---|---|---\n";
-    cout << " " << board[6] << " | " << board[7] << " | " << board[8] << " \n";
-}
-
-bool isMoveValid(const vector<char>& board, int move) {
-    return move >= 1 && move <= 9 && board[move - 1] != 'X' && board[move - 1] != 'O';
-}
-
-bool checkWin(const vector<char>& board, char player) {
-    vector<vector<int>> winningCombinations = {
-        {0, 1, 2}, {3, 4, 5}, {6, 7, 8}, // Filas
-        {0, 3, 6}, {1, 4, 7}, {2, 5, 8}, // Columnas
-        {0, 4, 8}, {2, 4, 6} // Diagonales
-    };
-
-    for (const auto& combination : winningCombinations) {
-        if (board[combination[0]] == player && board[combination[1]] == player && board[combination[2]] == player) {
+// Función para verificar si alguien ganó
+bool checkWin(const vector<vector<char>>& board, char player) {
+    // Verificar filas y columnas
+    for (int i = 0; i < 3; ++i) {
+        if ((board[i][0] == player && board[i][1] == player && board[i][2] == player) ||
+            (board[0][i] == player && board[1][i] == player && board[2][i] == player)) {
             return true;
         }
     }
-
+    // Verificar diagonales
+    if ((board[0][0] == player && board[1][1] == player && board[2][2] == player) ||
+        (board[0][2] == player && board[1][1] == player && board[2][0] == player)) {
+        return true;
+    }
     return false;
 }
 
-bool isBoardFull(const vector<char>& board) {
-    for (char cell : board) {
-        if (cell != 'X' && cell != 'O') {
-            return false;
+// Función para manejar el turno de un jugador
+bool makeMove(vector<vector<char>>& board, char player) {
+    int row, col;
+    while (true) {
+        cout << "Jugador " << player << ", elija la fila (1-3) y columna (1-3): ";
+        if (cin >> row >> col) {
+            if (row >= 1 && row <= 3 && col >= 1 && col <= 3 && board[row-1][col-1] == ' ') {
+                board[row-1][col-1] = player;
+                return true;
+            } else {
+                cout << "Movimiento invalido. Intente de nuevo." << endl;
+            }
+        } else {
+            cin.clear(); // Limpiar el estado de error de cin
+            cin.ignore(numeric_limits<streamsize>::max(), '\n'); // Ignorar la entrada incorrecta
+            cout << "Entrada invalida. Intente de nuevo." << endl;
         }
     }
-    return true;
 }
 
-void updateBoard(vector<char>& board, int move, char player) {
-    board[move - 1] = player;
-}
-
-void playGame(int& player1Wins, int& player2Wins) {
-    vector<char> board = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
-    int move;
-    char currentPlayer = 'X';
-
+// Función para manejar el turno de la máquina (movimiento aleatorio)
+void makeMachineMove(vector<vector<char>>& board) {
+    srand(static_cast<unsigned>(time(0)));
+    int row, col;
     while (true) {
-        clearScreen();
-        printBoard(board);
-        cout << "Jugador " << currentPlayer << ", ingresa tu movimiento (1-9): ";
-        cin >> move;
+        row = rand() % 3;
+        col = rand() % 3;
+        if (board[row][col] == ' ') {
+            board[row][col] = 'O';
+            break;
+        }
+    }
+}
 
-        if (isMoveValid(board, move)) {
-            updateBoard(board, move, currentPlayer);
+// Función para mostrar el tiempo transcurrido
+void displayElapsedTime(const steady_clock::time_point& start) {
+    auto now = steady_clock::now();
+    auto elapsed = duration_cast<seconds>(now - start);
+    cout << "Tiempo jugado: " << elapsed.count() << " segundos" << endl;
+}
+
+// Función para jugar contra la máquina
+void playAgainstMachine() {
+    vector<vector<char>> board(3, vector<char>(3, ' ')); // Tablero 3x3 inicializado con espacios
+    char currentPlayer = 'X';
+    bool gameOver = false;
+
+    // Iniciar temporizador
+    auto start = steady_clock::now();
+
+    while (!gameOver) {
+        printBoard(board);
+        displayElapsedTime(start);
+
+        if (currentPlayer == 'X') {
+            // Turno del jugador
+            if (!makeMove(board, currentPlayer)) {
+                continue;
+            }
         } else {
-            cout << "Movimiento inválido. Intenta de nuevo." << endl;
+            // Turno de la máquina
+            makeMachineMove(board);
+        }
+
+        // Verificar si hay ganador
+        if (checkWin(board, currentPlayer)) {
+            printBoard(board);
+            displayElapsedTime(start);
+            cout << "Jugador " << currentPlayer << " ha ganado!" << endl;
+            gameOver = true;
+        } else {
+            // Cambiar jugador
+            currentPlayer = (currentPlayer == 'X') ? 'O' : 'X';
+
+            // Verificar si hay empate
+            bool fullBoard = true;
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    if (board[i][j] == ' ') {
+                        fullBoard = false;
+                        break;
+                    }
+                }
+                if (!fullBoard) break;
+            }
+            if (fullBoard) {
+                printBoard(board);
+                displayElapsedTime(start);
+                cout << "Empate!" << endl;
+                gameOver = true;
+            }
+        }
+    }
+}
+
+// Función para imprimir el menú principal
+void printMenu() {
+    cout << "Bienvenido al juego de Tic-Tac-Toe!" << endl;
+    cout << "1. Jugar contra la inteligencia artificial" << endl;
+    cout << "2. Jugar entre dos jugadores" << endl;
+    cout << "3. Salir" << endl;
+    cout << "Seleccione una opcion: ";
+}
+
+// Función para jugar entre dos jugadores
+void playTwoPlayers() {
+    vector<vector<char>> board(3, vector<char>(3, ' ')); // Tablero 3x3 inicializado con espacios
+    char currentPlayer = 'X';
+    bool gameOver = false;
+
+    // Iniciar temporizador
+    auto start = steady_clock::now();
+
+    while (!gameOver) {
+        printBoard(board);
+        displayElapsedTime(start);
+
+        // Turno del jugador
+        if (!makeMove(board, currentPlayer)) {
             continue;
         }
 
+        // Verificar si hay ganador
         if (checkWin(board, currentPlayer)) {
-            clearScreen();
             printBoard(board);
-            cout << "¡Jugador " << currentPlayer << " gana!" << endl;
-            if (currentPlayer == 'X') {
-                player1Wins++;
-            } else {
-                player2Wins++;
+            displayElapsedTime(start);
+            cout << "Jugador " << currentPlayer << " ha ganado!" << endl;
+            gameOver = true;
+        } else {
+            // Cambiar jugador
+            currentPlayer = (currentPlayer == 'X') ? 'O' : 'X';
+
+            // Verificar si hay empate
+            bool fullBoard = true;
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    if (board[i][j] == ' ') {
+                        fullBoard = false;
+                        break;
+                    }
+                }
+                if (!fullBoard) break;
             }
-            return;
+            if (fullBoard) {
+                printBoard(board);
+                displayElapsedTime(start);
+                cout << "Empate!" << endl;
+                gameOver = true;
+            }
         }
-
-        if (isBoardFull(board)) {
-            clearScreen();
-            printBoard(board);
-            cout << "¡Es un empate!" << endl;
-            return;
-        }
-
-        currentPlayer = (currentPlayer == 'X') ? 'O' : 'X';
     }
 }
 
-void printStatistics(int gamesPlayed, int player1Wins, int player2Wins) {
-    cout << "Estadísticas del juego:\n";
-    cout << "Partidas jugadas: " << gamesPlayed << endl;
-    cout << "Victorias del Jugador 1 (X): " << player1Wins << endl;
-    cout << "Victorias del Jugador 2 (O): " << player2Wins << endl;
-}
+int main() {
+    int choice;
 
-// Función para limpiar la pantalla
-void clearScreen() {
-    // Para sistemas POSIX (como Linux y macOS)
-    cout << "\033[2J\033[1;1H";
-    // Para Windows (puedes comentar esto si no estás en Windows)
-    // system("CLS");
+    while (true) {
+        printMenu();
+        cin >> choice;
+
+        if (choice == 1) {
+            // Jugar contra la máquina
+            playAgainstMachine();
+        } else if (choice == 2) {
+            // Jugar entre dos jugadores
+            playTwoPlayers();
+        } else if (choice == 3) {
+            cout << "Gracias por jugar. Hasta la proxima!" << endl;
+            break;
+        } else {
+            cout << "Opcion invalida. Intente de nuevo." << endl;
+        }
+    }
+
+    return 0;
 }
